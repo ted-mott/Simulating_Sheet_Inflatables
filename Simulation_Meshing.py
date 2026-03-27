@@ -12,12 +12,13 @@ ________________________________________________________________________________
 """
 import gmsh
 import os
+import numpy as np
 
 
 """
 Functions
 ________________________________________________________________________________________________
-"""
+""" 
 
 def UI_Set_Variable(variable, variable_Name, Default_Setting):
     #Function used for simple command line UI to set parameters
@@ -77,7 +78,7 @@ def PhysicalGroupTag2Dim(Physical_Group_Tag):
 
 
 def ConstructDimTag(dim, tags):
-    #
+    #takes dim of group and list of tags, gmsh is not consistent with whether to use dim tags or list of tags.
     dim_tag = []
     for tag in tags:
         dim_tag.append((dim, tag))
@@ -85,18 +86,16 @@ def ConstructDimTag(dim, tags):
 
 
 def FragmentSurface(Surface_DimTag_List: list[int], Curve_DimTag_List: list[int]):
-
-    #print(Surface_DimTag_List)
-    #print(Curve_DimTag_List)
+    #fragments surface into multiple surfaces using curves - returns orginal surface and created surfaces
 
     gmsh.model.occ.synchronize()
-    surfaces_before = set(gmsh.model.getEntities(dim=2))
+    surfaces_before = set(gmsh.model.occ.getEntities(dim=2))
 
     gmsh.model.occ.fragment(Surface_DimTag_List, Curve_DimTag_List)
     #default args fragment(objectDimTags, toolDimTags, tag=-1, removeObject=True, removeTool=True)
     gmsh.model.occ.synchronize()
 
-    surfaces_after = set(gmsh.model.getEntities(dim=2))
+    surfaces_after = set(gmsh.model.occ.getEntities(dim=2))
     surfaces_created = surfaces_after.difference(surfaces_before)
     CurveSurfaces = list(surfaces_created)
     #comparing surfaces before to after
@@ -111,56 +110,44 @@ def FragmentSurface(Surface_DimTag_List: list[int], Curve_DimTag_List: list[int]
     
     else:
         print("surface destroyed, assuming main surface is largest")
-        
-        surfaces_sorted = sorted(surfaces_created, key=BoundingBox, reverse=True)
+
+        surfaces_sorted = sorted(CurveSurfaces, key=Area, reverse=True)
+        #using sorted, takes list of surface dim tags, calculates Boundingbox size and returns list in order of largest to smallest
         MainSurface = surfaces_sorted[0]
-        surfaces_created.remove(MainSurface)
+        CurveSurfaces.remove(MainSurface)
 
         print("MainSurface", MainSurface)
-        
-        return([MainSurface], surfaces_created)
+
+        return([MainSurface], CurveSurfaces)
 
 
-def BoundingBox(dimtag):
-    dim, tag = dimtag
-    #sort Geometric entities by bounding box volume in descending order
-    xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.getBoundingBox(dim, tag)
-    dx = xmax - xmin
-    dy = ymax - ymin
-    dz = zmax - zmin
-    return dx * dy * dz
+def Area(dimtag):
+    #calculates area using dim tag
+    dim, tag  = dimtag
+    area = gmsh.model.occ.getMass(dim, tag)
+    return(area)
 
-
-
-def EmbedCurveInSurface(Curve_List, Surface):
-    #Function that embeds list of curves in a surface
-
-    gmsh.model.occ.synchronize()
-
-    for Curve in Curve_List:
-        gmsh.model.mesh.embed(1, [Curve], 2, Surface)
-        
-        # runs embed curve command in gmsh
-    
 
 def Duplicate(Physical_Group):
     #Function used to copy physical groups so that inflatable has 2 layers
 
+    gmsh.model.occ.synchronize()
+
     entities = gmsh.model.getEntitiesForPhysicalName(Physical_Group)
     Group_dim = entities[0][0]
-    print(Group_dim)
-
+    #[0][0] gives dim of first item, in a physical group this must be the same as that is how they are set
+    
     copied_entities = []
 
     for dim,tag in entities:
         copied = gmsh.model.occ.copy([(dim, tag)])
-        copied_entities.append(copied)
+        copied_entities.append(copied[0])
 
-    # gmsh.model.add_physical_group(Group_dim, [Outer_Cut_Surface], name=Physical_Group +"Duplicate" )
+    gmsh.model.occ.synchronize()
 
-    print(entities , "\n" , copied_entities)
+    gmsh.model.add_physical_group(Group_dim, TagFromList(copied_entities), name= Physical_Group + "_Copy" )
 
-    return()
+    return(copied_entities)
 
 
 def Meshing():
@@ -193,7 +180,7 @@ def SaveGMSH(Output_Folder_Path):
     
     if GMSHSave == "y" or GMSHSave == "Y":
 
-        Output_Filename = "Test1_Circle.msh"
+        Output_Filename = "Test2_2D-Patterned_Circle.inp"
         print("Set file extension as .inp for use in Abaqus or .msh for use in SOFA")
         Output_Filename = UI_Set_Variable(Output_Filename, "Output Filename", Default_Setting)
         
@@ -215,13 +202,13 @@ if __name__ == "__main__":
     
     Default_Setting = True
 
-    STEP_Folder_Path = "Simulation_Examples/Test2_Patterned_Circle/STEP_geometry"
+    STEP_Folder_Path = "Simulation_Examples/Test2_2D-Patterned_Circle/STEP_geometry"
     #Default path defined here
-    Output_Folder_Path = "Simulation_Examples/Test1_2D_Surface_Circle/MSH_geometry"
+    Output_Folder_Path = "Simulation_Examples/Test2_2D-Patterned_Circle/MESH"
     #Set as the path for output files
     lc = 4.0
     #Default Global element size
-
+    gmsh.option.setNumber("Geometry.OCCImportTolerance", 1e-8)
 
     """"Input config"""
 
@@ -235,6 +222,7 @@ if __name__ == "__main__":
 
     Output_Folder_Path = UI_Set_Variable(Output_Folder_Path, "Output Folder Path", Default_Setting)
     #UI set Output Folder Path
+
     lc = UI_Set_Variable(lc, "Global Element Size", Default_Setting)
     #User input for global element size
 
@@ -249,26 +237,18 @@ if __name__ == "__main__":
 
     """Import STEP files"""
 
-    Inflated_Perimeter_Curves = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "Perimeter.stp"))
+    InflateSurface = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "InflateSurface.stp"))
 
     Outer = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "Outer.stp"))
-    if Outer[0][0] == 1:
-        #geometry stored as tuple (dim,tag), Outer_Cut[0][0] points to dim tag of first item, assuming only one item for outer cut in .stp
-        Outer_Loop = [gmsh.model.occ.addCurveLoop([Outer[0][1]])]
-        Outer_Surface = gmsh.model.occ.addPlaneSurface(Outer_Loop)
-    elif Outer[0][0] == 2:
-        Outer_Surface = Outer
-    else:
-        print("Outer needs to contain surface or curve")
 
     Coincident_Curves = None
     if os.path.exists(os.path.join(STEP_Folder_Path, "Coincident.stp")):
          Coincident_Curves = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "Coincident.stp"))
          print("Coincident.stp found")
     
-    Anchor_Curves = None
+    Anchor = None
     if os.path.exists(os.path.join(STEP_Folder_Path, "Anchor.stp")):
-        Anchor_Curves = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "Anchor.stp"))
+        Anchor = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "Anchor.stp"))
         print("Anchor.stp found")
     #Laser weld perimeter and Outer laser curve are the only expected files
 
@@ -284,95 +264,85 @@ if __name__ == "__main__":
     #     print("Join_Curves.stp found")
 
 
-
     """Curve Loops"""
+   
+    if Anchor:
+        gmsh.model.occ.synchronize()
+        AnchorSurfaces = TagFromList(Anchor)
+        AnchorCurves = []
+        for Surf in AnchorSurfaces:
+            Curve = gmsh.model.occ.get_curve_loops(Surf)
+            Curve = Curve[1][0][0]
+            print(Curve)
+            AnchorCurves.append(Curve)
+        
+        gmsh.model.addPhysicalGroup(2, AnchorSurfaces, name= "Anchor_Surfaces")
+        Duplicate("Anchor_Surfaces")
+    
+        gmsh.model.addPhysicalGroup(1, AnchorCurves, name= "AnchorCurves")
+        Duplicate("AnchorCurves")
 
-    Inflated_Surface_Perimeter_Loop = gmsh.model.occ.addCurveLoop([Inflated_Perimeter_Curves[0][1]])
 
-    if Anchor_Curves:
-        Anchor_Curves_Closed, Anchor_Curves_Open = Curve_Loop_Generator(Anchor_Curves)
-        #Curve_Loop_Generator(Curve_List), return(Closed_Loop_List, Open_Loop_List)
 
+    Coincident_Curves_Closed = None
+    Coincident_Curves_Open = None
+    
     if Coincident_Curves:
+        gmsh.model.occ.synchronize()
         Coincident_Curves_Closed, Coincident_Curves_Open = Curve_Loop_Generator(Coincident_Curves)
 
-
-
-    # """Physical Groups"""
-    # #Names are set for usability at end, use internal tags for physical groups to avoid issue when using fragment
-    # gmsh.model.occ.synchronize()
-
-    # gmsh.model.addPhysicalGroup(1, TagFromList(Anchor_Curves), name = "AnchorCurves")
-    # gmsh.model.addPhysicalGroup(1, TagFromList(Coincident_Curves), name = "CoincidentCurves")
-    # #Groups used during simulation
-
-    # OuterSurface = gmsh.model.addPhysicalGroup(2, [Outer_Cut_Surface])
-    # InflatedPerimeter = gmsh.model.addPhysicalGroup(1, TagFromList(Inflated_Perimeter_Curves))
-    # AnchorCurvesClosed = gmsh.model.addPhysicalGroup(1,  Anchor_Curves_Closed)
-    # CoincidentCurvesClosed = gmsh.model.addPhysicalGroup(1,  Coincident_Curves_Closed)
-    # #Groups used for fragmentation of surfaces
+        print(Coincident_Curves_Closed)
+        #curve loop generator was used for creting simple surfaces but is now used to seperate whether curve is open or closed.
+        #open loops are embedded and closed loops are used to fragment surface
 
 
     """Embedding curves in Surfaces"""
 
-    Outer_Surface, InflateSurface = FragmentSurface(ConstructDimTag(2, [Outer_Surface]), Inflated_Perimeter_Curves)
-    # FragmentSurface(Surface_DimTag_List: list[int], Curve_DimTag_List: list[int]) pass as a dim,tag list, GMSH is inconsistent with what it accepts so function ConstructDimTag has been created
-    # Returns [dim,tag]
+    if Coincident_Curves_Closed :
+        gmsh.model.occ.synchronize()
+        InflateSurface, CoincidentSurface = FragmentSurface(InflateSurface, ConstructDimTag(1, Coincident_Curves_Closed))
 
-    if Coincident_Curves:
-        if Coincident_Curves_Closed :
-            InflateSurface, CoincidentSurface = FragmentSurface(InflateSurface, ConstructDimTag(1, Coincident_Curves_Closed))
-            gmsh.model.addPhysicalGroup(2, TagFromList(CoincidentSurface), name = "Coincident_Surface")
+        gmsh.model.addPhysicalGroup(2, TagFromList(CoincidentSurface), name = "Coincident_Surfaces")
+        Duplicate("Coincident_Surfaces")
 
-        if Coincident_Curves_Open :
-            pass
+        gmsh.model.addPhysicalGroup(1, Coincident_Curves_Closed, name = "Coincident_Curves_Closed")
+        Duplicate("Coincident_Curves_Closed")
+        
 
-    if Anchor_Curves:
-        if Anchor_Curves_Closed :
-            Outer_Surface, Anchor_Surfaces = FragmentSurface(Outer_Surface , ConstructDimTag(1, Anchor_Curves_Closed))
-            gmsh.model.addPhysicalGroup(2, TagFromList(Anchor_Surfaces), name = "Anchor_Surfaces")
-
-        if Anchor_Curves_Open :
-            pass
-
-
-    # gmsh.model.addPhysicalGroup(2, TagFromList(InflateSurface), name = "Inflate_Surface")
-    # gmsh.model.addPhysicalGroup(2, TagFromList(Outer_Surface), name = "Outer_Surface")
-
-
-
-
-
-
-    #return(CurveSurfaces)
-
-
-    # OuterSurface, AnchorSurface = FragmentSurface(OuterSurface, AnchorCurvesClosed)
-    # InflatedSurface, CoincidentSurface = FragmentSurface(InflatedSurface, CoincidentCurvesClosed)
-
-    # gmsh.model.setPhysicalName(PhysicalGroupTag2Dim(OuterSurface), OuterSurface, "OuterSurface")
-    # gmsh.model.setPhysicalName(PhysicalGroupTag2Dim(AnchorSurface), AnchorSurface, "AnchorSurface")
-    # gmsh.model.setPhysicalName(PhysicalGroupTag2Dim(InflatedSurface), InflatedSurface, "InflatedSurface")
-    # gmsh.model.setPhysicalName(PhysicalGroupTag2Dim(CoincidentSurface), CoincidentSurface, "CoincidentSurface")
-
-
-
-
-
-
-
-
-
-
-
-    """Copy and Mirror"""
-    # Duplicate("Outer_Cut_surface_group")
+    gmsh.model.occ.synchronize()
     
+    Inflate_Perimeter = gmsh.model.occ.get_curve_loops(InflateSurface[0][1])
+    #get curve loops from surface for use in further simulations
 
+    gmsh.model.occ.synchronize()
+    
+    gmsh.model.addPhysicalGroup(1, Inflate_Perimeter[1][0], name = "Inflate_Perimeter")
+    Duplicate("Inflate_Perimeter")
+    
+    gmsh.model.addPhysicalGroup(2, TagFromList(InflateSurface), name = "Inflate_Surface")
+    Inflate_Surface_Duplicate = Duplicate("Inflate_Surface")
+
+    gmsh.model.addPhysicalGroup(2, TagFromList(Outer), name = "Outer_Surface")
+    Duplicate("Outer_Surface")
+
+
+    if Coincident_Curves_Open:
+        
+        gmsh.model.occ.synchronize()
+
+        gmsh.model.mesh.embed( 1, Coincident_Curves_Open, 2, InflateSurface[0][1])
+            
+        gmsh.model.addPhysicalGroup(1, Coincident_Curves_Open, name = "Coincident_Curves_Open")
+
+        Coincident_Curves_Open_Duplicate = Duplicate("Coincident_Curves_Open")
+        gmsh.model.mesh.reverse(Coincident_Curves_Open_Duplicate)
+        
+        print(Inflate_Surface_Duplicate[0][1])
+
+        gmsh.model.mesh.embed(1, TagFromList(Coincident_Curves_Open_Duplicate), 2, Inflate_Surface_Duplicate[0][1])
 
 
     """Meshing"""
-
 
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", lc)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", lc)
@@ -383,9 +353,10 @@ if __name__ == "__main__":
 
     Meshing()
 
+    gmsh.model.mesh.reverse(Inflate_Surface_Duplicate)
+
 
     """Output"""
-
 
     SaveGMSH(Output_Folder_Path) 
 
