@@ -180,7 +180,7 @@ def SaveGMSH(Output_Folder_Path):
     
     if GMSHSave == "y" or GMSHSave == "Y":
 
-        Output_Filename = "Test2_2D-Patterned_Circle.inp"
+        Output_Filename = "Test2_2D-Patterned_Circle.msh"
         print("Set file extension as .inp for use in Abaqus or .msh for use in SOFA")
         Output_Filename = UI_Set_Variable(Output_Filename, "Output Filename", Default_Setting)
         
@@ -202,9 +202,9 @@ if __name__ == "__main__":
     
     Default_Setting = True
 
-    STEP_Folder_Path = "Simulation_Examples/Test2_2D-Patterned_Circle/STEP_geometry"
+    STEP_Folder_Path = "Simulation_Examples/Test2b_2D-Patterned_Circle_Surface_Split/STEP_geometry"
     #Default path defined here
-    Output_Folder_Path = "Simulation_Examples/Test2_2D-Patterned_Circle/MESH"
+    Output_Folder_Path = "Simulation_Examples/Test2b_2D-Patterned_Circle_Surface_Split/MESH"
     #Set as the path for output files
     lc = 4.0
     #Default Global element size
@@ -250,6 +250,10 @@ if __name__ == "__main__":
     if os.path.exists(os.path.join(STEP_Folder_Path, "Anchor.stp")):
         Anchor = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "Anchor.stp"))
         print("Anchor.stp found")
+
+    
+    gmsh.model.occ.removeAllDuplicates()
+    gmsh.model.occ.synchronize()
     #Laser weld perimeter and Outer laser curve are the only expected files
 
 
@@ -297,6 +301,8 @@ if __name__ == "__main__":
 
 
     """Embedding curves in Surfaces"""
+    gmsh.option.setNumber("Geometry.ToleranceBoolean", 1e-4)
+
 
     if Coincident_Curves_Closed :
         gmsh.model.occ.synchronize()
