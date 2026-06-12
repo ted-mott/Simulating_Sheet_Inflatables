@@ -180,11 +180,12 @@ def SaveGMSH(Output_Folder_Path):
     
     if GMSHSave == "y" or GMSHSave == "Y":
 
-        Output_Filename = "Test2_2D-Patterned_Circle.msh"
+        Output_Filename = "Test1_2D_Circlev2.msh"
         print("Set file extension as .inp for use in Abaqus or .msh for use in SOFA")
         Output_Filename = UI_Set_Variable(Output_Filename, "Output Filename", Default_Setting)
         
         Output_Filepath = os.path.join(Output_Folder_Path, Output_Filename )
+        gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
         gmsh.write(Output_Filepath)
         #Save gmsh file
 
@@ -202,11 +203,11 @@ if __name__ == "__main__":
     
     Default_Setting = True
 
-    STEP_Folder_Path = "Simulation_Examples/Test2b_2D-Patterned_Circle_Surface_Split/STEP_geometry"
+    STEP_Folder_Path = "Simulation_Examples\Test1_2D_Circle\STEP_geometry"
     #Default path defined here
-    Output_Folder_Path = "Simulation_Examples/Test2b_2D-Patterned_Circle_Surface_Split/MESH"
+    Output_Folder_Path = "Simulation_Examples\Test1_2D_Circle"
     #Set as the path for output files
-    lc = 4.0
+    lc = 1.0
     #Default Global element size
     gmsh.option.setNumber("Geometry.OCCImportTolerance", 1e-8)
 
@@ -237,7 +238,8 @@ if __name__ == "__main__":
 
     """Import STEP files"""
 
-    InflateSurface = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "InflateSurface.stp"))
+    # InflateSurface = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "InflateSurface.stp"))
+    InflateSurface = gmsh.model.occ.importShapes(r"Simulation_Examples\Test1_2D_Circle\STEP_geometry\InflateSurface.stp")
 
     Outer = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "Outer.stp"))
 
@@ -354,6 +356,7 @@ if __name__ == "__main__":
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", lc)
     #set Global element size
 
+    gmsh.model.occ.removeAllDuplicates()
     gmsh.model.occ.synchronize()
     #using open cascade, need to synchronise geometry with GMSH
 
