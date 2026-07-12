@@ -34,7 +34,7 @@ def UI_Set_Variable(variable, variable_Name, Default_Setting):
         variable = input()
         print("New " + variable_Name + ": " , variable)
 
-    return(variable)
+    return variable
     
 
 def Curve_Loop_Generator(Curve_List):
@@ -56,7 +56,7 @@ def Curve_Loop_Generator(Curve_List):
             Open_Loop_List.append(Curve_id)
             print("Curve ", Curve_id, " is open")
 
-    return(Closed_Loop_List, Open_Loop_List)
+    return Closed_Loop_List, Open_Loop_List
 
 
 def TagFromList(entityList):
@@ -66,7 +66,7 @@ def TagFromList(entityList):
         tag = entity[1]
         tags.append(tag)
 
-    return(tags)
+    return tags
     
 
 def PhysicalGroupTag2Dim(Physical_Group_Tag):
@@ -82,7 +82,7 @@ def ConstructDimTag(dim, tags):
     dim_tag = []
     for tag in tags:
         dim_tag.append((dim, tag))
-    return(dim_tag)
+    return dim_tag
 
 
 def FragmentSurface(Surface_DimTag_List: list[int], Curve_DimTag_List: list[int]):
@@ -106,7 +106,7 @@ def FragmentSurface(Surface_DimTag_List: list[int], Curve_DimTag_List: list[int]
 
         print("surface exists", Surface_DimTag_List)
         
-        return(Surface_DimTag_List, CurveSurfaces)
+        return Surface_DimTag_List, CurveSurfaces
     
     else:
         print("surface destroyed, assuming main surface is largest")
@@ -118,14 +118,14 @@ def FragmentSurface(Surface_DimTag_List: list[int], Curve_DimTag_List: list[int]
 
         print("MainSurface", MainSurface)
 
-        return([MainSurface], CurveSurfaces)
+        return [MainSurface], CurveSurfaces
 
 
 def Area(dimtag):
     #calculates area using dim tag
     dim, tag  = dimtag
     area = gmsh.model.occ.getMass(dim, tag)
-    return(area)
+    return area
 
 
 def Duplicate(Physical_Group):
@@ -147,7 +147,7 @@ def Duplicate(Physical_Group):
 
     gmsh.model.add_physical_group(Group_dim, TagFromList(copied_entities), name= Physical_Group + "_Copy" )
 
-    return(copied_entities)
+    return copied_entities
 
 
 def Meshing():
@@ -203,11 +203,11 @@ if __name__ == "__main__":
     
     Default_Setting = True
 
-    STEP_Folder_Path = "Simulation_Examples\Test1_2D_Circle\STEP_geometry"
+    STEP_Folder_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Test1_2D_Circle\STEP_geometry"
     #Default path defined here
-    Output_Folder_Path = "Simulation_Examples\Test1_2D_Circle"
+    Output_Folder_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Test1_2D_Circle"
     #Set as the path for output files
-    lc = 1.0
+    lc = 5.0
     #Default Global element size
     gmsh.option.setNumber("Geometry.OCCImportTolerance", 1e-8)
 
@@ -238,8 +238,7 @@ if __name__ == "__main__":
 
     """Import STEP files"""
 
-    # InflateSurface = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "InflateSurface.stp"))
-    InflateSurface = gmsh.model.occ.importShapes(r"Simulation_Examples\Test1_2D_Circle\STEP_geometry\InflateSurface.stp")
+    InflateSurface = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "InflateSurface.stp"))
 
     Outer = gmsh.model.occ.importShapes(os.path.join(STEP_Folder_Path, "Outer.stp"))
 
@@ -283,10 +282,9 @@ if __name__ == "__main__":
             AnchorCurves.append(Curve)
         
         gmsh.model.addPhysicalGroup(2, AnchorSurfaces, name= "Anchor_Surfaces")
-        Duplicate("Anchor_Surfaces")
     
-        gmsh.model.addPhysicalGroup(1, AnchorCurves, name= "AnchorCurves")
-        Duplicate("AnchorCurves")
+        #gmsh.model.addPhysicalGroup(1, AnchorCurves, name= "AnchorCurves")
+        
 
 
 
@@ -310,11 +308,11 @@ if __name__ == "__main__":
         gmsh.model.occ.synchronize()
         InflateSurface, CoincidentSurface = FragmentSurface(InflateSurface, ConstructDimTag(1, Coincident_Curves_Closed))
 
-        gmsh.model.addPhysicalGroup(2, TagFromList(CoincidentSurface), name = "Coincident_Surfaces")
-        Duplicate("Coincident_Surfaces")
+        #gmsh.model.addPhysicalGroup(2, TagFromList(CoincidentSurface), name = "Coincident_Surfaces")
+        #Duplicate("Coincident_Surfaces")
 
         gmsh.model.addPhysicalGroup(1, Coincident_Curves_Closed, name = "Coincident_Curves_Closed")
-        Duplicate("Coincident_Curves_Closed")
+        #Duplicate("Coincident_Curves_Closed")
         
 
     gmsh.model.occ.synchronize()
@@ -325,13 +323,13 @@ if __name__ == "__main__":
     gmsh.model.occ.synchronize()
     
     gmsh.model.addPhysicalGroup(1, Inflate_Perimeter[1][0], name = "Inflate_Perimeter")
-    Duplicate("Inflate_Perimeter")
+    #Duplicate("Inflate_Perimeter")t
     
     gmsh.model.addPhysicalGroup(2, TagFromList(InflateSurface), name = "Inflate_Surface")
-    Inflate_Surface_Duplicate = Duplicate("Inflate_Surface")
 
     gmsh.model.addPhysicalGroup(2, TagFromList(Outer), name = "Outer_Surface")
-    Duplicate("Outer_Surface")
+
+    
 
 
     if Coincident_Curves_Open:
@@ -342,13 +340,6 @@ if __name__ == "__main__":
             
         gmsh.model.addPhysicalGroup(1, Coincident_Curves_Open, name = "Coincident_Curves_Open")
 
-        Coincident_Curves_Open_Duplicate = Duplicate("Coincident_Curves_Open")
-        gmsh.model.mesh.reverse(Coincident_Curves_Open_Duplicate)
-        
-        print(Inflate_Surface_Duplicate[0][1])
-
-        gmsh.model.mesh.embed(1, TagFromList(Coincident_Curves_Open_Duplicate), 2, Inflate_Surface_Duplicate[0][1])
-
 
     """Meshing"""
 
@@ -356,13 +347,21 @@ if __name__ == "__main__":
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", lc)
     #set Global element size
 
-    gmsh.model.occ.removeAllDuplicates()
+
     gmsh.model.occ.synchronize()
     #using open cascade, need to synchronise geometry with GMSH
+    
+    gmsh.model.mesh.SaveWithoutOrphans = 1;
+    #removes orphan points
+
+    # gmsh.option.setNumber("Mesh.SaveAll", 1)
+    #saves everything, alternatively this is usually set to only save things in a physical group
 
     Meshing()
+    gmsh.model.mesh.removeDuplicateNodes()
 
-    gmsh.model.mesh.reverse(Inflate_Surface_Duplicate)
+    #remove duplicates ensures mesh connectivity
+
 
 
     """Output"""
