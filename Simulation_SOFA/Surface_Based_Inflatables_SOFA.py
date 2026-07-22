@@ -1,4 +1,3 @@
-
 import Sofa
 import Sofa.Core
 import SofaRuntime
@@ -6,22 +5,33 @@ import Sofa.Gui
 import numpy as np
 
 
-class GMSHMesh:
-    #Class is expanding gmshloader in SOFA to retrieve physical groups
-    #Currently only retrieves the collections and is not mapped back to physical groups - unsure how to achieve this
+#########################################################################################
+""" updated - 15.07.26 """
+#########################################################################################
+
+
+##### GMSH Geometry Manipulation ######
+
+class GMSHLoaderExtended:
+    #Expand GMSHLoader to retrieve sub-entities within loaded mesh
+    #Can retrieve more information about those entities
 
     def __init__(self, loader_component):
         #takes in loader component and initialises triangle and edge groups
         self.loader = loader_component
 
-        self.triangle_group_indices = []
-        self.triangle_groups_length = 0
-        self.triangles = np.array(self.loader.triangles.value).copy()
-        
-        self.edge_group_indices = []
-        self.edge_groups_length = 0
-        self.edges = np.array(self.loader.edges.value).copy()
+        self.tets = np.array(self.loader.tetrahedra.value).copy()
+        self.tet_entities = {}
+        self.tet_entity_count = 0
 
+        self.triangles = np.array(self.loader.triangles.value).copy()
+        self.triangle_entities = {}
+        self.triangle_entity_count = 0
+        
+        self.edges = np.array(self.loader.edges.value).copy()
+        self.edge_entities = {}
+        self.edge_entity_count = 0
+       
         self.MeshCoordinates = np.array(self.loader.position.value).copy()
         #copy into np.array to avoid memory issues
         
@@ -32,107 +42,154 @@ class GMSHMesh:
         #Print info about mesh in given meshloader
         print("-- GMSH File Information --")
         print("Filename used:", self.loader.filename.value)
-        print("Found" ,self.triangle_groups_length, "Triangle Groups:", self.loader.trianglesGroups.getValueString())
-        print("Found" , self.edge_groups_length, "Edge Groups:", self.loader.edgesGroups.getValueString())
+        print("Found" ,self.tet_entity_count, "Tetrahedra Groups:", self.loader.tetrahedraGroups.getValueString())
+        print("Found" ,self.triangle_entity_count, "Triangle Groups:", self.loader.trianglesGroups.getValueString())
+        print("Found" , self.edge_entity_count, "Edge Groups:", self.loader.edgesGroups.getValueString())
         print("---------------------------")
         
 
     def PopulateGroupList(self):
         #SOFA gives group list in format "  -1 FirstPhysicalGroupIndex Range "
         #Note that SOFA uses "  -1 " delimiter to help parse the values
-        self.triangle_group_indices = self.loader.trianglesGroups.getValueString().split("  -1 ")
-        self.triangle_group_indices = self.ParseList(self.triangle_group_indices)
-        
-        self.triangle_groups_length = len(self.triangle_group_indices)
+        tetString = self.loader.tetrahedraGroups.getValueString().split("  -1 ")
+        tetIndices = self.ParseList(tetString)
+        self.tet_entities = self.PopulateEntityDict(tetIndices, self.tets, 3)
+        self.tet_entity_count = len(self.tet_entities)
 
-        self.edge_group_indices = self.loader.edgesGroups.getValueString().split("  -1 ")
-        self.edge_group_indices = self.ParseList(self.edge_group_indices)
+        triString = self.loader.trianglesGroups.getValueString().split("  -1 ")
+        triIndices = self.ParseList(triString)
+        self.triangle_entities = self.PopulateEntityDict(triIndices, self.triangles, 2)
+        self.triangle_entity_count = len(self.triangle_entities)
 
-        self.edge_groups_length = len(self.edge_group_indices)
+        edgeString = self.loader.edgesGroups.getValueString().split("  -1 ")
+        edgeIndices = self.ParseList(edgeString)
+        self.edge_entities = self.PopulateEntityDict(edgeIndices, self.edges, 1)
+        self.edge_entity_count = len(self.edge_entities)
 
 
     @staticmethod
-    def ParseList(PhysicalGroup):
-        #Further parse into range lists
-        if PhysicalGroup[0] == "" or PhysicalGroup[0] == " ":
-            PhysicalGroup.pop(0)
+    def ParseList(StringList):
+        #Remove first entity if null
+        if StringList[0] == "" or StringList[0] == " ":
+            StringList.pop(0)
         
-        #Parse start and range values
-        for i in range(0, len(PhysicalGroup)):
-            GroupRange = PhysicalGroup[i].split(" ")
+        EntityId = 0
+        EntityList = []
+
+
+        #Parse Entityinfo string in EntityList and replace with int range
+        for String in StringList:
+            Entityinfo = String.split(" ")
             
-            Start = int(GroupRange[0])
-            Span= int(GroupRange[1])
+
+            Start = int(Entityinfo[0])
+            Span= int(Entityinfo[1])
+            End = Start + Span
             
-            PhysicalGroup[i] = (Start , Start + Span)
+            Entity = (EntityId, Start , End)
+            EntityList.append(Entity)
+            #Now in format that can be used to populate entities dictionary
 
-        return(PhysicalGroup)
+            EntityId = EntityId + 1
 
-
-    def PhysicalGroupNodes(self, targetType, PhysicalGroupIndex, FlatSet = None, FlatList = None):
+        return EntityList
+    
+    
+    def PopulateEntityDict(self, EntityList, MeshEntities, EntityDim):
         #When physical group is called convert range(Start, Stop) into list of node indices that can be used by SOFA
-        
-        if targetType == "triangle":
-            #recover start and end that have been parsed
-            Start, End = (self.triangle_group_indices[PhysicalGroupIndex])
-            #query SOFA for triangles based on index
-            nodeList = self.triangles[Start: End]
-        
-        elif targetType == "edge":
-            Start, End = (list(self.edge_group_indices[PhysicalGroupIndex]))
-            nodeList = self.edges[Start:End]
+        EntityDictionary = {}
 
-        if FlatSet or FlatList:
-            nodeSet = self.FlattenNodeList(nodeList)
-
-            if FlatList:
-                return list(nodeSet)
+        for Entity in EntityList:
+            SOFAEntityId, Start, End = Entity
+            EntityIndices = MeshEntities[Start: End]
+            #Tris stored as [node1,node2,node3], Edges stored as [node1,node2]..etc.
+            EntityNodes = self.FlattenNodelist(EntityIndices)
+            EntityNodeCount = len(EntityNodes)
+            EntityCoords = self.CoordinatesListFromNode(EntityNodes)
             
-            return nodeSet
+            EntityDictionary[SOFAEntityId] = {
+                "Dimension" : EntityDim,
+                "ElementIndices" : EntityIndices,
+                "Nodes" : EntityNodes,
+                "NodeCount" : EntityNodeCount,
+                "EntityCoordinates" : EntityCoords
+            }
 
-        return nodeList
+        return EntityDictionary
+    
 
-
-    def FlattenNodeList(self, nodeList):
-        #Extracts nodes into a set of nodes
+    @staticmethod
+    def FlattenNodelist(Nodelist):
+        #strips nodes out of tuples inside Nodelist and adds to set to just give nodes of group
         FlatNodeSet = set()
-        for Nodes in nodeList:
+
+        for Nodes in Nodelist:
             for Node in Nodes:
                 FlatNodeSet.add(Node)
-        return FlatNodeSet
-
-
-    def PhysicalGroupIndices(self, targetType, PhysicalGroupIndex):
-        #When physical group is called convert range(Start, Stop) into list of triangle indices that can be used by SOFA
-        if targetType == "triangle":
-            #recover start and end that have been parsed
-            Start, End = (self.triangle_group_indices[PhysicalGroupIndex])
-            return(list(range(Start, End)))
         
-        elif targetType == "edge":
-            Start, End = (list(self.edge_group_indices[PhysicalGroupIndex]))
-            return(list(range(Start, End)))
+        #return as a list for use with SOFA
+        return list(FlatNodeSet)
+    
+    def CoordinatesListFromNode(self, FlatNodeList):
+        #returns coordinates of Nodelist, will share an index
+        CoordinatesList = []
+
+        for Node in FlatNodeList:
+            #Node = int(Node)
+            xyz = self.MeshCoordinates[Node]
+            CoordinatesList.append(xyz)
+
+        return CoordinatesList
+
+        
 
 
-    def NodeCoordinates (self, NodeList):
-        #Returns dictionary of nodes and x y z coordinates
-        Coordinates = {}
+class PhysicalGroup:
+    #Class to store combinations of GMSH entities so they can be referenced by SOFA
+    def __init__(self, GmshLoader_ElementTypeEntities, *Entities):
+        
+        self.PhysicalGroupEntities = Entities
+        self.GmshLoader_ElementTypeEntities = GmshLoader_ElementTypeEntities
+        self.PhysicalGroupDim = None
+        self.PhysicalGroupTag = None
 
-        for Nodes in NodeList:
-            for Node in Nodes:
-                xyz = self.MeshCoordinates[Node]
-                Coordinates[Node] = {
-                    "x": xyz[0],
-                    "y": xyz[1],
-                    "z": xyz[2]
-                }
+        self.Nodes = []
+        self.ElementIndices = []
+
+        self.LoadAndRemoveDupes()
+        
+
+    def LoadAndRemoveDupes(self):
+        #Load Nodes and Elements from GmshLoaderExtended, put into set to ensure no repeats
+        NodeSet = set()
+
+        for Entity in self.PhysicalGroupEntities:
+
+            if not self.PhysicalGroupDim:
+                self.PhysicalGroupDim = self.GmshLoader_ElementTypeEntities[Entity]["Dimension"]
+                #Ensures not repeatedly writing to PhysicalGroupDim
+                ElementsIndicesList = self.GmshLoader_ElementTypeEntities[Entity]["ElementIndices"]
+                #Also gives indication of first entity, is an nparray so annoying to initialise - this is a dodgy workaround
+            else:
+                EntityElementsIndices = self.GmshLoader_ElementTypeEntities[Entity]["ElementIndices"]
+                ElementsIndicesList = np.concatenate((ElementsIndicesList, EntityElementsIndices))
+                #Assuming no overlapping elements as they have been separated into entities
             
-        print(Coordinates)
+            EntityNodes = self.GmshLoader_ElementTypeEntities[Entity]["Nodes"]
+            NodeSet.update(set(EntityNodes))
+            #Entities very likely to have overlapping nodes so cull duplicates here
 
-        return(Coordinates)
-        
+        self.Nodes = list(NodeSet)
+        self.ElementIndices = ElementsIndicesList
 
 
+    def ConstructfromJSON():
+        #Create a constructor function for passing between
+        pass
+
+
+
+##### Constraints #####
 
 class Weld:
     def __init__(self, NodeList, NodeDictionary, YoungsModulus, Thickness):
@@ -153,11 +210,7 @@ class Weld:
 
 
 
-
-
-
-
-
+##### Controllers #####
 
 class PressureController:
     pass
@@ -170,84 +223,3 @@ class PressureController:
 
 
 
-
-
-
-def main():
-    # Call the SOFA function to create the root node
-    root = Sofa.Core.Node("root")
-
-    SofaRuntime.importPlugin("SofaImGui")
-
-    # Call the createScene function, as runSofa does
-    createScene(root)
-
-    # Once defined, initialization of the scene graph
-    Sofa.Simulation.initRoot(root)
-
-    # # Launch the GUI (imgui is now by default, to use Qt please refer to the example "basic-useQtGui.py")
-    # Sofa.Gui.GUIManager.Init("myscene", "imgui")
-    # Sofa.Gui.GUIManager.createGUI(root, __file__)
-    # Sofa.Gui.GUIManager.SetDimension(1080, 800)
-
-    # # Initialization of the scene will be done here
-    # Sofa.Gui.GUIManager.MainLoop(root)
-    # Sofa.Gui.GUIManager.closeGUI()
-
-
-
-def createScene(rootNode):
-
-    #Name of root node
-    rootNode.name.value = "rootNode"
-    #time step, S
-    rootNode.dt = 0.01
-    #gravity in mmS-2
-    rootNode.gravity.value = [ 0., 0. ,-9.81]
-
-
-    rootNode.addObject('RequiredPlugin', pluginName=['Sofa.Component.StateContainer','Sofa.Component.Mass','Sofa.Component.MechanicalLoad',
-                                                'Sofa.Component.LinearSolver.Iterative','Sofa.Component.ODESolver.Backward',
-                                                'Sofa.Component.IO.Mesh','Sofa.Component.Topology.Container.Dynamic',
-                                                'Sofa.Component.SolidMechanics.FEM.Elastic','Sofa.Component.Topology.Container.Constant',
-                                                'Sofa.Component.Visual','Sofa.Component.Mapping.Linear','Sofa.GL.Component.Rendering3D',
-                                                'Sofa.Component.Constraint.Projective','Sofa.Component.Engine.Select',
-                                                'Sofa.Component.Constraint.Lagrangian.Correction','Sofa.Component.Constraint.Lagrangian.Model',
-                                                'Sofa.Component.Constraint.Lagrangian.Solver','Sofa.Component.LinearSolver.Direct',
-                                                'Sofa.Component.AnimationLoop','Sofa.GUI.Component'])
-
-
-    #rootNode.addObject("FreeMotionAnimationLoop", computeBoundingBox=True)
-    rootNode.addObject("DefaultAnimationLoop", computeBoundingBox=True)
-    #free motion animation loop needed for lagrangian constraints
-    rootNode.addObject('LCPConstraintSolver', tolerance="1e-3", maxIt="1000")
-    
-    rootNode.addObject('VisualStyle', displayFlags='showForceFields showCollisionModels showBehaviorModels showDetectionOutputs showNormals')
-    #tells SOFA what models are allowed to be displayed
-
-
-    """----------- Inflatable ----------"""
-    #Define parent node
-    
-    Inflatable = rootNode.addChild("Inflatable")
-    #GmshLoader should be attached to parent
-    
-
-    GmshLoader = Inflatable.addObject("MeshGmshLoader", name='GmshLoader', filename= r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Test1_2D_Circle\MESH_geometry\Test1_2D_Circlev2.msh", scale3d=[0.001, 0.001, 0.001])
-    #GMSH .msh file units in mm, scale to m
-    
-    TestMesh = GMSHMesh(GmshLoader)
-
-    TestMesh.MeshInfo()
-
-
-
-
-
-
-
-
-
-# Function used only if this script is called from a python environment
-if __name__ == '__main__':
-    main()

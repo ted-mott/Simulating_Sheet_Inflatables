@@ -1,0 +1,12 @@
+{
+    "filename": "Sim1_2D_Circle",
+    "lc": 4,
+
+    "Output_folder_path" : "C:/Users/ucemeam/OneDrive - University College London/git/Simulating_Surface_Based_Inflatables/Simulation_SOFA/Sim1_2D_Circle/MESH_geometry",
+
+    "Inflate_Surface_File_Path":"C:/Users/ucemeam/OneDrive - University College London/git/Simulating_Surface_Based_Inflatables/Simulation_SOFA/Sim1_2D_Circle/STEP_geometry/Inflate.stp",
+    "Anchor_File_Path":"C:/Users/ucemeam/OneDrive - University College London/git/Simulating_Surface_Based_Inflatables/Simulation_SOFA/Sim1_2D_Circle/STEP_geometry/Anchor.stp",
+    "Weld_File_Path": "C:/Users/ucemeam/OneDrive - University College London/git/Simulating_Surface_Based_Inflatables/Simulation_SOFA/Sim1_2D_Circle/STEP_geometry/Weld.stp",
+    "Free_Surface_File_Path":"C:/Users/ucemeam/OneDrive - University College London/git/Simulating_Surface_Based_Inflatables/Simulation_SOFA/Sim1_2D_Circle/STEP_geometry/Free.stp"
+    
+}

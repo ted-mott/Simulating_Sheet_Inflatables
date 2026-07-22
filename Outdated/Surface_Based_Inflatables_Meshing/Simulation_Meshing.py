@@ -1,10 +1,27 @@
 """
 Simulation_Meshing.py
 Using to create a GMSH file that can be used in Abaqus or SOFA
-27.01.2026
+27.01.26
 Ted M
-________________________________________________________________________________________________
 """
+
+################# OUTDATED #######################
+# 13.07.26
+# SOFA requires triangles for contacts of welds, as a result cannot use embedded curves
+# New method just pre-processes all geometry in grasshopper just use GMSH for meshing and creating physical groups
+
+  ##|##
+ ##-+-##
+ ###|###
+ ###|###
+##R#I#P##
+#~~~~~~~~~#
+  #~~~~~~~~~#
+    #~~~~~~~~~#
+
+#Here lies a bad script, that wasted a lot of time
+
+##################################################
 
 """
 Libraries
@@ -86,6 +103,10 @@ def ConstructDimTag(dim, tags):
 
 
 def FragmentSurface(Surface_DimTag_List: list[int], Curve_DimTag_List: list[int]):
+    ###################################
+    """In future use a dimtagsmap!!!"""
+    ###################################
+
     #fragments surface into multiple surfaces using curves - returns orginal surface and created surfaces
 
     gmsh.model.occ.synchronize()

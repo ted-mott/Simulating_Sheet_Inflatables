@@ -1,7 +1,0 @@
-{
-    "python.testing.pytestArgs": [
-        "Tensile_Testing"
-    ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
-}
