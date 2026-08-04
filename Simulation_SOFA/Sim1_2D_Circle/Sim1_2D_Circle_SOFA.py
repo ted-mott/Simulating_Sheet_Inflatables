@@ -19,9 +19,10 @@ import Sofa.Gui
 
 ##### JSON info #####
 
-InitialInflatablePressure = 0 #Pressure in Pa
-FlowRate = 0.01 #Pressure/second for now
-SupplyPressure  = 30000 #30kPa
+# InitialInflatablePressure = 0 #Pressure in Pa
+# FlowRate = 0.01 #Pressure/second for now
+# SupplyPressure  = 30000 #30kPa
+# Now in controller
 
 YoungsModulus = 93000000.0 #E in Pa
 PoissonsRatio = 0.45
@@ -35,7 +36,6 @@ MeshFilename  = r"Sim1_2D_Circle_LC4.msh"
 InitialisationTime = 1 #in seconds, how long does the simulation get to settle before applying loads
 
 Mesh_Location  = os.path.join(mesh_data_dir, MeshFilename)
-
 
 
 
@@ -67,7 +67,7 @@ def createScene(rootNode):
     #Name of root node
     rootNode.name.value = "rootNode"
     #time step, S
-    rootNode.dt = 0.00005
+    rootNode.dt = 0.01
     #gravity in mmS-2
     rootNode.gravity.value = [ 0., 0. ,-9.81]
 
@@ -99,8 +99,11 @@ def createScene(rootNode):
     rootNode.addObject("VisualStyle", displayFlags="showForceFields showCollisionModels showBehaviorModels showDetectionOutputs")
     #tells SOFA what models are allowed to be displayed
 
-
-
+    monitor = ControllerMonitor(name="monitor")
+    #need to create object first to get access to python class functions
+    rootNode.addObject(monitor)
+    #Controller monitor can keep track of 
+    
 
     ##### Inflatable #####
     #Define parent node as inflatble
@@ -137,16 +140,11 @@ def createScene(rootNode):
 
     Inflatable.addObject("EulerImplicitSolver",rayleighStiffness="0.1", rayleighMass="0.1")
     Inflatable.addObject("CGLinearSolver", iterations=200, tolerance=1e-9, threshold=1e-9)
+    #Should set tolerance and threshold to 1e-10, based on dof scale of 1e-3 and error of 1e-2, tol should be dof err squared
 
 
 
     ##### Define Pressure #####
-
-    InflatablePressure = 500
-    #create an inflatable pressure controller for this!
-    #controller should sit in inflatable class
-
-
 
     ##### Inflated Surface and Fixed Anchor Constraints #####
     #Inflatable surfaces are children of inflatable to keep enclosed, B is copy of A with Negative pressure
@@ -156,7 +154,8 @@ def createScene(rootNode):
     InflatableSurfaceA.addObject("MechanicalObject", template="Vec3d", name="StateContainerA", showObject=True)
     InflatableSurfaceA.addObject("UniformMass", totalMass = Mass )
     InflatableSurfaceA.addObject("TriangleFEMForceField", template="Vec3d", poissonRatio=PoissonsRatio, youngModulus=YoungsModulus, thickness = Thickness, method="large")
-    InflatableSurfaceA.addObject("SurfacePressureForceField", name="Pressure_RegionA", pressure= InflatablePressure, triangleIndices = InflateSurface.ElementIndices)
+    SurfacePressureA = InflatableSurfaceA.addObject("SurfacePressureForceField", name="SurfacePressureA", pressure= 0, triangleIndices = InflateSurface.ElementIndices)
+    #If it has a variable name it is interfacing with python
     InflatableSurfaceA.addObject("FixedProjectiveConstraint", name="AnchorA", indices= Anchor.Nodes)
 
 
@@ -165,7 +164,8 @@ def createScene(rootNode):
     InflatableSurfaceB.addObject("MechanicalObject", template="Vec3d", name="StateContainerB", showObject=True)
     InflatableSurfaceB.addObject("UniformMass", totalMass = Mass )
     InflatableSurfaceB.addObject("TriangleFEMForceField", template="Vec3d", poissonRatio=PoissonsRatio, youngModulus=YoungsModulus, thickness = Thickness, method="large")
-    InflatableSurfaceB.addObject("SurfacePressureForceField", name="Pressure_RegionB", pressure= - InflatablePressure, triangleIndices = InflateSurface.ElementIndices)
+    SurfacePressureB = InflatableSurfaceB.addObject("SurfacePressureForceField", name="SurfacePressureB", pressure= 0, triangleIndices = InflateSurface.ElementIndices)
+    #Needed for use in controller#
     InflatableSurfaceB.addObject("FixedProjectiveConstraint", name="AnchorB", indices= Anchor.Nodes)
     
 
@@ -187,7 +187,6 @@ def createScene(rootNode):
     collisionlModelANW.addObject("TriangleCollisionModel", name="TriCollisionModelA", contactStiffness=10, selfCollision = 1, bothSide = 1)
     # collisionlModelANW.addObject("LineCollisionModel", name="LineCollisionModelA", contactStiffness=10, selfCollision = 1, bothSide = 1)
     # collisionlModelANW.addObject("PointCollisionModel", name="PointCollisionModelA", contactStiffness=10, selfCollision = 1, bothSide = 1)
-    # collisionlModelANW.addObject("BarycentricMapping", name="VisualMapping", input="@../StateContainer", output="@StoringForces") # Barycentric mapping connecting the two representations with different topologies
     collisionlModelANW.addObject('IdentityMapping', input="@../StateContainerA", output="@StoringForcesANW")
 
     collisionlModelAW = InflatableSurfaceA.addChild("collisionlModelAW")
@@ -207,6 +206,20 @@ def createScene(rootNode):
     # collisionlModelBNW.addObject("PointCollisionModel", name="PointCollisionModelB", contactStiffness=10, selfCollision = 1, bothSide = 1)
     # collisionlModelANW.addObject("BarycentricMapping", name="VisualMapping", input="@../StateContainer", output="@StoringForces") # Barycentric mapping connecting the two representations with different topologies
     collisionlModelBNW.addObject('IdentityMapping', input="@../StateContainerB", output="@StoringForcesBNW")
+
+
+    ##### Define controllers #####
+    PressureControlA = PressureController( SOFAfield = SurfacePressureA, name = "PressureControlA", targetVal= 200)
+    InflatableSurfaceA.addObject(PressureControlA)
+    monitor.AddController(PressureControlA, "Pressure", W = 10, S = -10)
+    #by adding to monitor can change values with key press
+
+    PressureControlB = PressureController( SOFAfield = SurfacePressureB, name = "PressureControlB", maxVal = 0, minVal = -30000, targetVal= -200)
+    InflatableSurfaceB.addObject(PressureControlB)
+    monitor.AddController(PressureControlB, "Pressure", W = -10, S = 10 )
+
+    monitor.ControllerInfo()
+    #print info about all controllers in scene
         
 
 

@@ -143,7 +143,6 @@ class GMSHLoaderExtended:
 
         
 
-
 class PhysicalGroup:
     #Class to store combinations of GMSH entities so they can be referenced by SOFA
     def __init__(self, GmshLoader_ElementTypeEntities, *Entities):
@@ -189,31 +188,24 @@ class PhysicalGroup:
 
 
 
-##### Constraints #####
+# ##### Constraints #####
 
-class Weld:
-    def __init__(self, NodeList, NodeDictionary, YoungsModulus, Thickness):
-        #uses springs at points
-        self.YoungModulus = YoungsModulus #in Pa
-        self.Thickness = Thickness #in m
+# class Weld:
+#     def __init__(self, NodeList, NodeDictionary, YoungsModulus, Thickness):
+#         #uses springs at points
+#         self.YoungModulus = YoungsModulus #in Pa
+#         self.Thickness = Thickness #in m
 
-        self.NodeList = NodeList
-        self.NodeDictionary = NodeDictionary
+#         self.NodeList = NodeList
+#         self.NodeDictionary = NodeDictionary
 
-        self.weldsprings = {}
-        #need to figure output format!
+#         self.weldsprings = {}
+#         #need to figure output format!
 
-        self.DistanceBetweenNodes(self.NodeList, self.NodeDictionary)
+#         self.DistanceBetweenNodes(self.NodeList, self.NodeDictionary)
 
-    def DistanceBetweenNodes(self, ):
-        pass
-
-
-
-##### Controllers #####
-
-class PressureController:
-    pass
+#     def DistanceBetweenNodes(self, ):
+#         pass
 
 
 
@@ -221,5 +213,126 @@ class PressureController:
 
 
 
+#########new controller
+
+class ControllerMonitor(Sofa.Core.Controller):
+    def __init__(self,  *args, **kwargs):
+        # These are needed (and the normal way to override from a python class)
+        Sofa.Core.Controller.__init__(self, *args, **kwargs)
+        
+        self.SimulationControllers = []
+        #List of current controllers and associated keys?
+        self.KeyMap = {}
+
+        print("initialised Controller monitor:" , self.name.value)
+
+    def onKeypressedEvent(self, event):
+        pressedKey = event['key']
+        #print("key pressed:" ,pressedKey)
+
+        if pressedKey in self.KeyMap:
+            for Controller, ChangeValue in self.KeyMap[pressedKey]:
+                Controller.update(ChangeValue)
+
+        elif pressedKey == "/":
+            self.ControllerInfo()
+
+    # def onAnimateBeginEvent(self, event):
+    #     can use this to synchronise with other controller
+
+    def AddController(self, Controller, ControlType, **kwargs):
+        #store controller and type
+        self.SimulationControllers.append((Controller, ControlType))
+
+        #store keys and change values
+        for key, value in kwargs.items():
+            self.BindKey(key, Controller, value)
+            #self.KeyMap[key] = [(Controller , int(value))]
+
+    def BindKey(self, key, Controller, value):
+        #Function allows multiple fields related to single key mapping
+        if key in self.KeyMap:
+            self.KeyMap[key].append((Controller , int(value)))
+        else:
+            self.KeyMap[key] = [(Controller , int(value))]
 
 
+    def ControllerInfo(self):
+        #print controller, current values
+        #print key, controller, update
+        if len(self.SimulationControllers) < 1:
+            print("No Controllers")
+
+        else:
+            for Controller, ControlType in self.SimulationControllers:
+                print(Controller.name.value, ", Type: ", ControlType, ", Current Value: ", Controller.current_value, ", Target Value: ", Controller.target_value)
+      
+
+
+class SOFA_Controller(Sofa.Core.Controller):
+    def __init__(self, SOFAfield = None,  minVal = 0, maxVal = 30000, targetVal = 0, changeRate = 1, method = "Linear",  *args, **kwargs):
+        #Initialise sofa controller
+        Sofa.Core.Controller.__init__(self, *args, **kwargs)
+
+        #Generic link to SOFA field
+        self.SOFAfield = SOFAfield
+        
+        #Added to be simpler to interface with on script level
+        self.target_value = targetVal
+        self.current_value = 0
+        self.previous_value = None
+
+        self.max = maxVal
+        self.min = minVal
+        self.changeRate =changeRate
+        #change per time step, defult 1 per step
+        self.method = method
+        #method to arrive at target, default Linear ramp
+        print("Controller Initialised: ", self.name.value)
+
+    def update(self, ChangeValue):
+        #change target by set amount, based on keypress
+        self.target_value = self.target_value + ChangeValue
+
+        if self.target_value > self.max:
+            self.target_value = self.max
+        elif self.target_value < self.min:
+            self.target_value = self.min
+
+        print("target updated to: ", self.target_value)
+    
+    def poll(self):
+        #compare current value to target value
+        if  self.current_value == self.target_value:
+            return None
+        
+        if self.method == "Linear":
+            nextStep = self.LinearRamp()
+
+        return nextStep
+
+    def LinearRamp(self):
+        #Calculate nextStep if values are ramped linearly
+        if self.target_value < self.current_value:
+            nextStep = self.current_value - self.changeRate
+
+        elif self.target_value > self.current_value:
+            nextStep = self.current_value + self.changeRate
+
+        if self.changeRate >=  abs(self.target_value - self.current_value):
+            nextStep = self.target_value
+        
+        return nextStep
+
+
+
+class PressureController(SOFA_Controller):
+    #Pressure controller is a controller but it updates the pressure value
+    def onAnimateBeginEvent(self, event):
+        nextStep = self.poll()
+        if nextStep:    
+            self.previous_value = self.current_value
+            self.current_value = nextStep
+            self.SOFAfield.pressure = self.current_value
+            #Set SOFA parameter
+            
