@@ -13,6 +13,6 @@ SOFA script examples available:
 Extended SOFA functions with python wrapper:
     https://github.com/ted-mott/Simulating_Sheet_Inflatables/blob/main/Simulation_SOFA/Surface_Based_Inflatables_SOFA.py
     
-    Extended GMSH loader - can access physical groups
-    Extended controller - controller monitor can update multiple controller per scene
+Extended GMSH loader - can access physical groups
+Extended controller - controller monitor can update multiple controller per scene
 
