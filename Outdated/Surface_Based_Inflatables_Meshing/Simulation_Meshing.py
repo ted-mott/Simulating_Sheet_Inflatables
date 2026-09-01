@@ -201,7 +201,7 @@ def SaveGMSH(Output_Folder_Path):
     
     if GMSHSave == "y" or GMSHSave == "Y":
 
-        Output_Filename = "Test1_2D_Circlev2.msh"
+        Output_Filename = "Test2_2D_Circle.msh"
         print("Set file extension as .inp for use in Abaqus or .msh for use in SOFA")
         Output_Filename = UI_Set_Variable(Output_Filename, "Output Filename", Default_Setting)
         
@@ -224,9 +224,9 @@ if __name__ == "__main__":
     
     Default_Setting = True
 
-    STEP_Folder_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Test1_2D_Circle\STEP_geometry"
+    STEP_Folder_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Outdated\Surface_Based_Inflatables_Meshing\STEP_geometry"
     #Default path defined here
-    Output_Folder_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Test1_2D_Circle"
+    Output_Folder_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Outdated\Surface_Based_Inflatables_Meshing\MESH_geometry"
     #Set as the path for output files
     lc = 5.0
     #Default Global element size
@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
 
     """Embedding curves in Surfaces"""
-    gmsh.option.setNumber("Geometry.ToleranceBoolean", 1e-4)
+    gmsh.option.setNumber("Geometry.ToleranceBoolean", 1e-2)
 
 
     if Coincident_Curves_Closed :

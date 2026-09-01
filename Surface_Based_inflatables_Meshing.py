@@ -7,6 +7,8 @@ import json
 
 #########################################################################################
 """ new - 13.07.26 """
+#Prior fragementation of surface should be undertaken before loading STEP files
+#
 #########################################################################################
 
 
@@ -119,8 +121,16 @@ def generateMesh(MeshConfig, saveMesh = True, openGMSH = False):
             gmsh.write(Output_Filepath + ".msh")
 
             GenerateSOFAbridgefile(PhysicalGroups, MeshEntities,  Output_Filepath)
+
+            gmsh.model.mesh.reverse()
+            gmsh.write(Output_Filepath + "reverse.inp")
+            gmsh.write(Output_Filepath + "reverse.msh")
             
-        print(MeshEntities)
+        
+        # gmsh.model.mesh.reverse()
+        # gmsh.write(Output_Filepath + "reverse.inp")
+        # gmsh.write(Output_Filepath + "reverse.msh")
+
 
         if openGMSH:
             gmsh.fltk.run()
@@ -171,13 +181,10 @@ def PhysicalGroup(name, dimTags,PhysicalGroups, MeshEntities):
 def GenerateSOFAbridgefile(PhysicalGroups, MeshEntities, Output_Filepath):
     #Generate a dictionary that can be passed to SOFA, save as a JSON file with meshes
     for dim, dimdict in MeshEntities.items():
-         print(dim)
          for tag, tagdict in dimdict.items():
-            print(tag)
             #Nodes , Coords = gmsh.model.mesh.getNodes(2, 1)
             Nodes , Coords, _ = gmsh.model.mesh.getNodes(dim, tag)
-            print(Nodes)
-            #Retrieve all nodes and coordinates in mesh belingnig to physical group
+            #Retrieve all nodes and coordinates in mesh belonging to physical group
             NodeCount = len(Nodes)
             NodeSample = []
             CoordinateSample =[]
@@ -213,14 +220,21 @@ def GenerateSOFAbridgefile(PhysicalGroups, MeshEntities, Output_Filepath):
 
 
 if __name__ == "__main__":
-    config = MeshConfig(filename = "Sim1_2D_Circle", lc = 4 ,
-                        Output_folder_path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1_2D_Circle\MESH_geometry",
-                        Inflate_Surface_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1_2D_Circle\STEP_geometry\Inflate.stp",
-                        Anchor_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1_2D_Circle\STEP_geometry\Anchor.stp",
-                        Weld_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1_2D_Circle\STEP_geometry\Weld.stp",
-                        Free_Surface_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1_2D_Circle\STEP_geometry\Free.stp")
-    
+    # config = MeshConfig(filename = "Sim1_2D_Circle_Patterned", lc = 4 ,
+    #                     Output_folder_path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\MESH",
+    #                     Inflate_Surface_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\STEP\Inflate.stp",
+    #                     Anchor_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\STEP\Anchor.stp",
+    #                     Weld_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\STEP\Weld.stp",
+    #                     Free_Surface_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\STEP\Free.stp")
+
+
+    config = MeshConfig(filename = "Test", lc = 1 ,
+                    Output_folder_path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\MESH",
+                    Inflate_Surface_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\STEP\Inflate.stp",
+                    Anchor_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\STEP\Anchor.stp",
+                    Weld_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\STEP\Weld.stp",
+                    Free_Surface_File_Path = r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1-Circle\STEP\Free.stp")
     
     # config = MeshConfig.readJSON(r"C:\Users\ucemeam\OneDrive - University College London\git\Simulating_Surface_Based_Inflatables\Simulation_SOFA\Sim1_2D_Circle\Sim1config.JSON")
-    PhysicalGroups, MeshEntities, MshFilePath = generateMesh(config, saveMesh = True, openGMSH = True)
+    PhysicalGroups, MeshEntities, MshFilePath = generateMesh(config, saveMesh = True, openGMSH = False)
 
